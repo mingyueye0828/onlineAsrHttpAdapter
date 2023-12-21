@@ -37,7 +37,7 @@ public class PeriodJobs {
 
 
     /***
-     * 周期检查应用状态
+     * 周期检查应用状态ll
      * @param period 检查周期
      */
     public void periodCheck(Long period) {
