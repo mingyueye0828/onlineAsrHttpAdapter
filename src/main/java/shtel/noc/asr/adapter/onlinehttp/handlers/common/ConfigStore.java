@@ -46,7 +46,7 @@ public class ConfigStore {
     private static int asrAdapterPort;
 
     /**
-     * 应用并发上限
+     * 应用并发上限 ($appId + "_" + $engineId, concurrencyLimit)
      */
     @Getter
     private static Map<String, Integer> appLimitMap = new HashMap<>();
@@ -75,6 +75,7 @@ public class ConfigStore {
      * 引擎列表;key:engineId; value:(engineIdUrl, true)
      * modelId: [{url: status}]
      * status :true = available
+     * 这里主要标记引擎是否还活着
      */
     @Getter
     private static Map<String, LinkedHashMap<URL,Boolean>> engineIdUrlMap = new HashMap<>();
@@ -150,7 +151,7 @@ public class ConfigStore {
 
     /**
      * 从redis里获取并发限制，并初始化引擎并发，
-     * appLimitMap：(appId + "_" + engineId, concurrencyLimit)
+     * appLimitMap：($appId + "_" + $engineId, concurrencyLimit)
      * 设置对应的返回地址
      */
     public static Future<Void> getAndSetConcurrencyLimit() {
@@ -213,6 +214,35 @@ public class ConfigStore {
             array[i] = prefix + inputArray[i];
         }
         return array;
+    }
+
+    /**
+     * 随机选择哪一个引擎发送
+     */
+    public static URL randomSelectEngineModule(String modelId){
+        ArrayList<URL> trueUrls = new ArrayList<>();
+
+        for (URL engineUrl : ConfigStore.getEngineIdUrlMap().get(modelId).keySet()){
+            if (ConfigStore.getEngineIdUrlMap().get(modelId).get(engineUrl)){
+                trueUrls.add(engineUrl);
+            }
+        }
+        if (trueUrls.isEmpty()){
+            return null;
+        }
+        int randomIndex = new Random().nextInt(trueUrls.size());
+        log.info("select url is {} ,modelId is {}, index is {} , list is {}",trueUrls.get(randomIndex),modelId,randomIndex,ConfigStore.getEngineIdUrlMap().get(modelId).keySet());
+        return trueUrls.get(randomIndex);
+    }
+
+
+
+
+    /**
+     * 解除配置锁
+     */
+    public static void resetInitFlag(){
+        notFirstInit.set(false);
     }
 
     /**

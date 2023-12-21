@@ -2,6 +2,7 @@ package shtel.noc.asr.adapter.onlinehttp.handlers.common;
 
 import io.vertx.core.Vertx;
 import lombok.extern.slf4j.Slf4j;
+import shtel.noc.asr.adapter.onlinehttp.handlers.processor.SessionController;
 import shtel.noc.asr.adapter.onlinehttp.utils.Constants;
 import shtel.noc.asr.adapter.onlinehttp.utils.EventBusChannels;
 

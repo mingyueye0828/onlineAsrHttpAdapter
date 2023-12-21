@@ -1,5 +1,8 @@
 package shtel.noc.asr.adapter.onlinehttp.utils;
 
+import io.vertx.core.json.JsonObject;
+import shtel.noc.asr.adapter.onlinehttp.handlers.common.ConfigStore;
+
 /**
  * @author JWZ
  * @version 1.0
@@ -28,7 +31,7 @@ public class Constants {
     public static final String CONCURRENCY_APP_PREFIX = "CONCURRENCY_ASRONLINE_APP" + ConfigStore.getTestAffix();
     public static final String CONCURRENCY_ENGINE_LICENSE_PREFIX = "CONCURRENCY_ASRONLINE_ENGINE_LICENSE" + ConfigStore.getTestAffix();
     public static final String CONCURRENCY_APP_LICENSE_PREFIX = "CONCURRENCY_ASRONLINE_APP_LICENSE" + ConfigStore.getTestAffix();
-    public static final String ASRONLINE_CALLSTATUS_PREFIX = "ASRONLINE_HTTP" + ConfigStore.getTestAffix();
+    public static final String ASRONLINE_CALLSTATUS_PREFIX = "ASRONLINE_HTTP_Engine" + ConfigStore.getTestAffix();
 
     public static final String PUB_APPENG_PREFIX = "PUB_APPENG_";
     public static final String SEG_ID_PREFIX = "SEG_ID"+ ConfigStore.getTestAffix();
@@ -36,6 +39,7 @@ public class Constants {
 
     public static final String ENGINE_ALIVE_PATH = "/alive";
 
+    public static final JsonObject successResponse = new JsonObject().put("code", 0).put("message", "received!");
 
     /**
      * 默认的静音检测阈值

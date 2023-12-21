@@ -23,24 +23,15 @@ import static io.vertx.json.schema.common.dsl.Schemas.stringSchema;
 public class InputValidation implements Handler<RoutingContext> {
     private final Schema schema;
 
-    public InputValidation(Vertx vertx, String jsonSchemaString) {
-        SchemaRouter schemaRouter = SchemaRouter.create(vertx, new SchemaRouterOptions());
-        SchemaParser schemaParser = SchemaParser.createDraft201909SchemaParser(schemaRouter);
-        JsonObject jsonSchema = new JsonObject(jsonSchemaString);
-        schema = schemaParser.parse(jsonSchema);
-    }
     //uid(1) auf(0) audioStatus(1) audioData(1) modelId(1) appId(0) callInfo(0) params(0)
     public InputValidation(Vertx vertx) {
         SchemaRouter schemaRouter = SchemaRouter.create(vertx, new SchemaRouterOptions());
         SchemaParser schemaParser = SchemaParser.createDraft201909SchemaParser(schemaRouter);
         this.schema = objectSchema()
-                .requiredProperty("reqId", stringSchema())
                 .requiredProperty("uid", stringSchema())
-                .requiredProperty("callId", stringSchema())
-                .requiredProperty("audioData", stringSchema())
                 .requiredProperty("audioStatus", stringSchema())
-                .requiredProperty("duration", stringSchema())
-                .requiredProperty("startTime", stringSchema())
+                .requiredProperty("audioData", stringSchema())
+                .requiredProperty("modelId", stringSchema())
                 .build(schemaParser);
     }
 

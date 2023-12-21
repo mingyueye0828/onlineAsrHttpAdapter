@@ -2,16 +2,21 @@ package shtel.noc.asr.adapter.onlinehttp.verticles;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
+import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.Router;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
+import io.vertx.ext.web.handler.BodyHandler;
 import lombok.extern.slf4j.Slf4j;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.ConfigStore;
+import shtel.noc.asr.adapter.onlinehttp.handlers.common.RedisHandler;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.ResponseBody;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.handler.AliveHandler;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.handler.FailureHandler;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.handler.PingHandler;
 import shtel.noc.asr.adapter.onlinehttp.utils.EventBusChannels;
+import shtel.noc.asr.adapter.onlinehttp.validation.InputValidation;
 
 /**
  * @author JWZ
@@ -38,17 +43,37 @@ public class MainVerticle extends AbstractVerticle {
         WebClient client = WebClient.create(vertx, options);
 
         /**
+         * 初始化配置，redis和适配相关，并在之后再次设置第一次初始化状态
+         */
+        RedisHandler.init(vertx);
+        ConfigStore.init(config().getJsonObject("adapter"), config().getJsonObject("sessionController"));
+        vertx.setTimer(5000L,s-> ConfigStore.resetInitFlag());
+        configureEventBus();
+
+        Router router = Router.router(vertx);
+        router.route().handler(BodyHandler.create());
+        router.route().consumes("application/json");
+        router.route().produces("application/json");
+
+        /**
          * 初始化相关处理器,探针，失败
          */
-
         PingHandler pingHandler = new PingHandler();
         AliveHandler aliveHandler = new AliveHandler();
-
         FailureHandler failureHandler = new FailureHandler();
+        router.get("/ping").handler(pingHandler).failureHandler(failureHandler);
+        router.get("/alive").handler(aliveHandler).failureHandler(failureHandler);
+        router.get(ConfigStore.getAsrHttpInterface() + "/ping").handler(pingHandler).failureHandler(failureHandler);
 
-//        ResponseBody responseBody = new ResponseBody();
+        /**
+         * 参数校验处理器，客户响应处理
+         */
+        InputValidation queryASRHttpParamCheckHandler = new InputValidation(vertx);
+        ResponseBody responseBody = new ResponseBody();
 
-
+        router.route(HttpMethod.POST, ConfigStore.getAsrHttpInterface())
+                .handler(queryASRHttpParamCheckHandler)    //入参校验
+        ;
 
 
     }

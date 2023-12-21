@@ -203,7 +203,7 @@ public class RedisUtils extends AbstractVerticle {
 
 
     /***
-     * 获取分布式锁
+     * 获取分布式锁，只有键不存在时，才能够执行成功
      * @param lockKey 锁名称
      * @param requestId 锁标识
      * @param timeUnit 过期时间单位
