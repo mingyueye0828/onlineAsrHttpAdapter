@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN" monitorInterval="30">
+
+    <Properties>
+        <Property name="APP_NAME" value="adapterAsrOnlineHttp"/>
+
+        <Property name="CONSOLE_LAYOUT"
+                  value='%d{yyyyMMddHHmmss.SSS} | %thread | ${APP_NAME} | %level | %logger{0} | %message | %ex{5} %n'/>
+
+    </Properties>
+
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="${CONSOLE_LAYOUT}"/>
+        </Console>
+
+    </Appenders>
+    <Loggers>
+        <Logger name="shtel.noc.vertx.onlineadapterhttp" level="info" additivity="false">
+            <AppenderRef ref="Console"/>
+
+        </Logger>
+        <Root level="info">
+            <AppenderRef ref="Console"/>
+
+        </Root>
+    </Loggers>
+</Configuration>
+
