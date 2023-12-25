@@ -43,6 +43,8 @@ public class ConfigStore {
     @Getter
     private static String asrReceiverInterface;
     @Getter
+    private static String asrReceiverIp;
+    @Getter
     private static int asrAdapterPort;
 
     /**
@@ -87,6 +89,7 @@ public class ConfigStore {
         }
         ConfigStore.asrHttpInterface = adapterConfig.getString(ConfigurationKeys.ASR_HTTP_INTERFACE.name());
         ConfigStore.asrReceiverInterface = adapterConfig.getString(ConfigurationKeys.ASR_RECEIVER_INTERFACE.name());
+        ConfigStore.asrReceiverIp=adapterConfig.getString(ConfigurationKeys.ASR_RECEIVER_IP.name());
         ConfigStore.asrAdapterPort = adapterConfig.getInteger(ConfigurationKeys.ASR_ADAPTER_PORT.name());
 
         ConfigStore.testAffix = adapterConfig.getString(ConfigurationKeys.TEST_AFFIX.name());
@@ -162,6 +165,7 @@ public class ConfigStore {
                         appLimitMap = newAppLimitMap;
                         log.info("SET-APP-CONCURRENCY-LIMIT is {}" , appLimitMap.toString());
                     }
+                    promise.complete();
         }).onFailure(rf -> promise.fail("get App Concurrency Limit ERROR! " + rf.getCause()));
         return promise.future();
     }
@@ -179,7 +183,7 @@ public class ConfigStore {
                         if (finalI >= listKeys.size() - 1) {
                             promise.complete();
                         }
-                        log.debug("Init concurrency success,Key is {}",listKeys.get(finalI));
+                        log.info("Init concurrency success,Key is {}",listKeys.get(finalI));
                     })
                     .onFailure(rf -> promise.fail("Init concurrency failed, Key is " + listKeys.get(finalI)));
         }
@@ -197,6 +201,7 @@ public class ConfigStore {
         List<String> listKeys = new ArrayList<>(map.keySet());
         for (String listKey : listKeys) {
             result.add(keyPrefix + listKey);
+//            log.info("add keyPrefix + listKey {} success", keyPrefix + listKey);
         }
         return result;
     }

@@ -7,15 +7,19 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.redis.client.RedisAPI;
 import lombok.extern.slf4j.Slf4j;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.entity.CallStatus;
+import shtel.noc.asr.adapter.onlinehttp.handlers.common.entity.ResultReceived;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.entity.VoiceSeg;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.exception.RedisException;
 import shtel.noc.asr.adapter.onlinehttp.utils.Constants;
 import shtel.noc.asr.adapter.onlinehttp.utils.EventBusChannels;
 import shtel.noc.asr.adapter.onlinehttp.utils.RedisUtils;
+import shtel.noc.asr.adapter.onlinehttp.utils.TimeStamp;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+
+import static shtel.noc.asr.adapter.onlinehttp.handlers.service.QueryASROnlineHttpInterfaceHandler.buildResponse;
 
 /**
  * @author JWZ
@@ -45,7 +49,6 @@ public class RedisHandler {
         RedisAPI.api(RedisUtils.getClient()).mget(Arrays.asList(redisKey))
                 .onSuccess(rs -> {
                     Map<String, Integer> concurrencyLimits = new HashMap<>();
-                    log.info("获取的键值为：", rs.toString());
                     String resultStr = rs.toString().substring(1, rs.toString().length() - 1);
                     //分割结果并解析出各个app的engine的并发上限
                     for (String value : resultStr.split(", ")) {
@@ -53,6 +56,7 @@ public class RedisHandler {
                         String appId = resultJson.getString("app_id");
                         String engineId = resultJson.getString("engine_id");
                         Integer concurrencyLimit = resultJson.getInteger("max_concurrency");
+//                        log.info("app_id: {}, engine_id: {}, max_concurrency :{}", appId, engineId, concurrencyLimit);
                         //获取失败则设一个极大值，变相取消并发限制
                         if (concurrencyLimit == null) {
                             log.warn("get {} failed!", Arrays.toString(redisKey));
@@ -94,7 +98,7 @@ public class RedisHandler {
                                     CallStatus initCallStatus = new CallStatus(voiceSeg);
                                     initCallStatus.setReqId(uid);
                                     initCallStatus.setAppId(appId);
-                                   // 这里设置了callStatus的信息
+                                    // 这里设置了callStatus的信息
                                     RedisHandler.setCallStatus(uid, initCallStatus, false)
                                             .onFailure(rrf -> promise.fail(new RedisException("Init callStatus failed, uid " + uid)))
                                             .onSuccess(rrs -> promise.complete(initCallStatus));
@@ -164,6 +168,99 @@ public class RedisHandler {
                 .onFailure(rf -> log.warn("get lock failed for get callStatus! uid is {}", uid));
         return promise.future();
     }
+
+
+    /**
+     * 直接set就行，根据score来 提取出来的时候也是按照score排序的,
+     * 也加一个过期时间（这里可以在SessionController进行删除），也可以直接取走，就将对应成员删除呀
+     * 将ReceiverResult写入Redis，先上锁，在解锁
+     *  key value score
+     * @param resultReceived      接收字段信息
+     * @param needReleaseLock 是否需要解锁
+     * @return 返回 已完成
+     */
+    private static final String SET_RESULT_SCRIPT = "local result = redis.call('zadd', KEYS[1], ARGV[2] ,ARGV[1])";
+
+    public static Future<Void> setReceiverResult(String uid, JsonObject requestBody, boolean needReleaseLock) {
+        Promise<Void> promise = Promise.promise();
+
+        RedisHandler.getDistributionLock(Constants.ASRONLINE_RECEIVERRESULT_PREFIX + uid + "_LOCK", uid)
+                .onSuccess(rss ->
+                        RedisAPI.api(RedisUtils.getClient()).eval(Arrays.asList(
+                                SET_RESULT_SCRIPT,
+                                "1",
+                                Constants.ASRONLINE_RECEIVERRESULT_PREFIX + uid,
+                                requestBody.encode(),
+                                TimeStamp.currentTimeStamp()
+                        )).onSuccess(
+                                rr -> {
+                                    log.debug("插入redis成功！！！！");
+                                    if (needReleaseLock) {
+                                        RedisHandler.releaseDistributionLock(Constants.ASRONLINE_RECEIVERRESULT_PREFIX + uid + "_LOCK", uid);
+                                        log.debug("已经释放锁了");
+                                    }
+                                })
+                        .onFailure(rf ->{
+                            log.error("Result set into Redis failed! uid is {}", uid);
+                        })
+                )
+                .onFailure(rf -> promise.fail(new RedisException("Get insert result lock failed! uid " + uid)));
+        return promise.future();
+    }
+
+
+    /**
+     * 将集合里面的所有元素取出来，之后组成一个集合，发送给客户端，并将集合中的元素删除
+     * 将ReceiverResult写入Redis，先上锁，在解锁
+     *  key value score,获取的值按照从高到低排序
+     * @param resultReceived  接收字段信息
+     * @param needReleaseLock 是否需要解锁
+     * @return 返回 已完成
+     */
+
+    private static final String GET_RESULT_SCRIPT = "local result = redis.call('zrange', KEYS[1], 0 , -1) if(next(result)~=nil) then redis.call('zremrangebyrank', KEYS[1], 0, -1) return result else return 0 end";
+
+    public static Future<String[]> getReceiverResult(String uid, boolean needReleaseLock) {
+        Promise<String[]> promise = Promise.promise();
+        RedisHandler.getDistributionLock(Constants.ASRONLINE_RECEIVERRESULT_PREFIX + uid + "_LOCK", uid)
+                .onSuccess(rss ->
+                        RedisAPI.api(RedisUtils.getClient()).eval(Arrays.asList(
+                                GET_RESULT_SCRIPT,
+                                "1",
+                                Constants.ASRONLINE_RECEIVERRESULT_PREFIX + uid
+                        )).onSuccess(
+                                result -> {
+                                    // 返回是一个数组 List<String>
+                                    int resultLen = result.toString().length();
+                                    // 进行判断是否有返回
+                                    if (resultLen < 3) {
+                                        log.debug("返回的是0！！！！！！！！！！！");
+                                        promise.complete(new String[0]);
+                                        // 若有返回，去掉首位，并将其分隔成String[]
+                                    } else {
+                                        String[] resultList = result.toString().substring(1, resultLen - 1).split(", ");
+                                        log.debug("返回的长度是：{}", resultList.length);
+                                        log.info("app session {}, results {} has been get", uid, resultList);
+                                        promise.complete(resultList);
+                                    }
+                                    if (needReleaseLock) {
+                                        vertx.setTimer(100L, tl ->//// NOTE: 2021/6/3 这里延迟100ms解锁，给出时间传输
+                                                RedisHandler.releaseDistributionLock(Constants.ASRONLINE_RECEIVERRESULT_PREFIX + uid + "_LOCK", uid)
+                                        );
+                                    }
+
+
+                                })
+                                .onFailure(rf ->{
+                                    log.error("Result get from Redis failed! uid is {}", uid);
+                                    promise.fail("Result get from Redis failed! uid is" + uid);
+                                })
+                )
+                .onFailure(rf -> promise.fail(new RedisException("Get from result lock failed! uid " + uid)));
+        return promise.future();
+    }
+
+
 
 
 

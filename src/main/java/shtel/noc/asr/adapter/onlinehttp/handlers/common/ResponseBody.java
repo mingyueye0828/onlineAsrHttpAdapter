@@ -9,7 +9,7 @@ import static shtel.noc.asr.adapter.onlinehttp.utils.Constants.successResponse;
  * @author JWZ
  * @version 1.0
  * @date 2023/12/19
- * @annotation 这里是对客户端的回复
+ * @annotation 这里是对下层引擎的回复
  */
 @Slf4j
 public class ResponseBody {

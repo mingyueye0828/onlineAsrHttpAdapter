@@ -33,6 +33,10 @@ public enum ConfigurationKeys {
      */
     ASR_RECEIVER_INTERFACE,
     /**
+     * 本适配对应的ip
+     */
+    ASR_RECEIVER_IP,
+    /**
      * 本适配http端口
      */
     ASR_ADAPTER_PORT,

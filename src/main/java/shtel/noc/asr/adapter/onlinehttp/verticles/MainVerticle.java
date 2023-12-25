@@ -10,11 +10,17 @@ import io.vertx.ext.web.client.WebClientOptions;
 import io.vertx.ext.web.handler.BodyHandler;
 import lombok.extern.slf4j.Slf4j;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.ConfigStore;
+import shtel.noc.asr.adapter.onlinehttp.handlers.common.PeriodJobs;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.RedisHandler;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.ResponseBody;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.handler.AliveHandler;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.handler.FailureHandler;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.handler.PingHandler;
+import shtel.noc.asr.adapter.onlinehttp.handlers.processor.ASREngineHandler;
+import shtel.noc.asr.adapter.onlinehttp.handlers.processor.FlowProcessor;
+import shtel.noc.asr.adapter.onlinehttp.handlers.processor.SessionController;
+import shtel.noc.asr.adapter.onlinehttp.handlers.service.QueryASROnlineHttpInterfaceHandler;
+import shtel.noc.asr.adapter.onlinehttp.handlers.service.ResultReceiverInterfaceHandler;
 import shtel.noc.asr.adapter.onlinehttp.utils.EventBusChannels;
 import shtel.noc.asr.adapter.onlinehttp.validation.InputValidation;
 
@@ -66,15 +72,47 @@ public class MainVerticle extends AbstractVerticle {
         router.get(ConfigStore.getAsrHttpInterface() + "/ping").handler(pingHandler).failureHandler(failureHandler);
 
         /**
+         * 周期性健康检测
+         */
+        SessionController sessionController = new SessionController();
+        new PeriodJobs(vertx, sessionController);
+
+        /**
          * 参数校验处理器，客户响应处理
          */
         InputValidation queryASRHttpParamCheckHandler = new InputValidation(vertx);
-        ResponseBody responseBody = new ResponseBody();
+//        ResponseBody responseBody = new ResponseBody();
+
+        /**
+         * 请求（客户），接收（下层引擎）
+         */
+        ASREngineHandler asrEngineHandler = new ASREngineHandler(vertx, client);
+        FlowProcessor flowProcessor = new FlowProcessor(vertx, asrEngineHandler);
+        QueryASROnlineHttpInterfaceHandler queryASROnlineHttpInterfaceHandler = new QueryASROnlineHttpInterfaceHandler(vertx, flowProcessor);
+
+        ResultReceiverInterfaceHandler resultReceiverInterfaceHandler = new ResultReceiverInterfaceHandler();
 
         router.route(HttpMethod.POST, ConfigStore.getAsrHttpInterface())
                 .handler(queryASRHttpParamCheckHandler)    //入参校验
+                .handler(queryASROnlineHttpInterfaceHandler)
+                .failureHandler(failureHandler)
         ;
 
+        router.route(HttpMethod.POST, ConfigStore.getAsrReceiverInterface())
+                .handler(resultReceiverInterfaceHandler)
+                .failureHandler(failureHandler)
+        ;
+
+        // 启动Http server
+        vertx.createHttpServer().requestHandler(router).listen(ConfigStore.getAsrAdapterPort(), r -> {
+            if (r.succeeded()) {
+                log.info("Http server created! Listen port {}", ConfigStore.getAsrAdapterPort());
+                startPromise.complete();
+            } else {
+                log.error("Http server create failed!", r.cause());
+                startPromise.fail(r.cause());
+            }
+        });
 
     }
 

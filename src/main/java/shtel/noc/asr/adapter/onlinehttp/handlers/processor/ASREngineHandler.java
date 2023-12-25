@@ -13,7 +13,6 @@ import shtel.noc.asr.adapter.onlinehttp.handlers.common.entity.CallStatus;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.entity.VoiceSeg;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.exception.EngineException;
 import shtel.noc.asr.adapter.onlinehttp.utils.Constants;
-
 import java.net.URL;
 
 /**
@@ -94,11 +93,11 @@ public class ASREngineHandler {
                 .put("callInfo", voiceSeg.getCallInfo())
                 .put("params", voiceSeg.getParams())
                 ;
-
+        log.debug("返回地址为：{}", voiceSeg.getParams());
         if (voiceSeg.getAudioData().length() == 0 && !"4".equals(audioStatus)) {
             log.warn("Audio data is zero length! uid {}", uid);
         }
-        log.info("Engine module url is {}", engineUrl);
+        log.debug("Engine module url is {}", engineUrl);
 
         //向引擎发送
         webClient.post(engineUrl.getPort(), engineUrl.getHost(), engineUrl.getPath())
@@ -107,6 +106,7 @@ public class ASREngineHandler {
                 .timeout(Constants.DEFAULT_POST_TIMEOUT)
                 .sendJsonObject(reqBody)
                 .onSuccess(rs -> {
+                    log.debug("PCM has send engine !!!!!!");
                     JsonObject resultJson = rs.body();
                     if (null != resultJson) {
                         promise.complete(resultJson);

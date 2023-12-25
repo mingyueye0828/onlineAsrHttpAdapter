@@ -99,9 +99,11 @@ public class FlowProcessor {
                     .onSuccess(callStatus -> {
                         voiceSeg.setAuf(callStatus.getAuf());
                         sendTheSeg(callStatus, voiceSeg)
-                                .onComplete(rr -> {
-                                    SessionController.decrAppSession(appEnginePostFix, uid);
-                                })
+//                                .onComplete(rr -> {
+//
+//
+//                                    SessionController.decrAppSession(appEnginePostFix, uid);
+//                                })
                                 //.onSuccess(rrs -> log.debug("last seg of call has been processed! uid {}",uid))
                                 .onFailure(rrf -> log.warn("last seg of call processed failed! uid {}, msg is {}",
                                         uid, rrf.getMessage()));
@@ -123,6 +125,7 @@ public class FlowProcessor {
         asrEngineHandler.sendOrEnd(sentenceId, voiceSeg, callStatus)
                 .onFailure(promise::fail)
                 .onSuccess(rs->promise.complete())
+                //这里将更改过的callStatus放到redis里面
                 .onComplete(callStatusNew -> {
                     RedisHandler.setCallStatus(uid, callStatusNew.result(), true);
                 });

@@ -145,7 +145,7 @@ public class RedisUtils extends AbstractVerticle {
 
 
     /***
-     * 获取分布式锁 键值有过期时间
+     * 获取分布式锁 键值有过期时间 锁过期时间950ms
      * @param task   eventbus message:锁，请求编号，锁过期时间单位（可选，默认秒），锁过期时间（默认1）
      */
     public void getDistributedLock(Message<JsonObject> task) {

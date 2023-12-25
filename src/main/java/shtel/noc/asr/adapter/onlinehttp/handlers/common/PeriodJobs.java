@@ -10,7 +10,7 @@ import shtel.noc.asr.adapter.onlinehttp.utils.EventBusChannels;
  * @author JWZ
  * @version 1.0
  * @date 2023/12/19
- * @annotation
+ * @annotation 主要作用：健康检测，并删除相关的键值，检查并发
  */
 @Slf4j
 public class PeriodJobs {
@@ -22,18 +22,13 @@ public class PeriodJobs {
     public PeriodJobs(Vertx vertx, SessionController sessionController) {
         this.vertx = vertx;
         this.sessionController = sessionController;
-
         vertx.eventBus().<Void>consumer(EventBusChannels.PERIOD_JOB_RUN.name()).handler(voidMessage -> periodJobStart());
-
-
     }
 
     private void periodJobStart() {
-
         periodUpdateConfigFromRedis(Constants.CONFIG_UPDATE_PERIOD);
         appSessionCleaner(Constants.HEALTH_CHECK_PERIOD);
         periodCheck(Constants.HEALTH_CHECK_PERIOD);
-
     }
 
 
@@ -49,7 +44,6 @@ public class PeriodJobs {
 
     /**
      * 周期检查应用并发状态
-     *
      * @param period 检查周期
      */
     public void appSessionCleaner(Long period) {

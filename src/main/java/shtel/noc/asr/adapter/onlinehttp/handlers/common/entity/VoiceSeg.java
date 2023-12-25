@@ -1,8 +1,15 @@
 package shtel.noc.asr.adapter.onlinehttp.handlers.common.entity;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.vertx.core.json.JsonObject;
 import lombok.Data;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @author JWZ
@@ -20,8 +27,9 @@ public class VoiceSeg {
     private String audioData;
     private String modelId;
     private String appId;
-    private JsonObject callInfo;
-    private JsonObject params;
+    private Map<String, Object> callInfo;
+    private Params params;
+
 
 
     public VoiceSeg() {
@@ -31,9 +39,11 @@ public class VoiceSeg {
         this.audioStatus = "";
         this.modelId = "";
         this.appId = "";
-        this.callInfo = new JsonObject();
-        this.params = new JsonObject();
+        this.params = new Params();
+        this.callInfo = new HashMap<>();
+
     }
+
 
 
     /**
@@ -44,6 +54,9 @@ public class VoiceSeg {
             this.auf = 8000;
         }
     }
+
+
+
     public void setAuf(int auf){
         this.auf=auf;
     }

@@ -10,6 +10,7 @@ import shtel.noc.asr.adapter.onlinehttp.handlers.common.handler.ExceptionHandler
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.HealthyCheck;
 import shtel.noc.asr.adapter.onlinehttp.utils.EventBusChannels;
 import shtel.noc.asr.adapter.onlinehttp.utils.RedisUtils;
+import shtel.noc.asr.adapter.onlinehttp.verticles.MainVerticle;
 
 /**
  * @author JWZ

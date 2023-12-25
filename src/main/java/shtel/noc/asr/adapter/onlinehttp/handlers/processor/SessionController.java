@@ -90,6 +90,7 @@ public class SessionController {
                 Constants.CONCURRENCY_APP_LICENSE_PREFIX + concurrencyKeyPostFix,
                 uid))
                 .onSuccess(rs -> {
+                    log.debug("正在减去并发！！！！！");
                     if (!"-1".equals(rs.toString())) {
                         log.info("metricsLog asrOnlineHttpSessionCount {} appId {} decr and rem from APP license done!",
                                 rs, concurrencyKeyPostFix.split("_")[0]);

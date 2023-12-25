@@ -33,13 +33,17 @@ public class Constants {
     public static final String CONCURRENCY_APP_LICENSE_PREFIX = "CONCURRENCY_ASRONLINE_APP_LICENSE" + ConfigStore.getTestAffix();
     public static final String ASRONLINE_CALLSTATUS_PREFIX = "ASRONLINE_HTTP_Engine" + ConfigStore.getTestAffix();
 
+    public static final String ASRONLINE_RECEIVERRESULT_PREFIX = "RECEIVER_RESULT_ASRONLINE_HTTP" + ConfigStore.getTestAffix();
+    //public static final String ASRONLINE_RECEIVERRESULT_LICENSE_PREFIX = "RECEIVER_RESULT_ASRONLINE_HTTP_LICENSE" + ConfigStore.getTestAffix();
+
+
     public static final String PUB_APPENG_PREFIX = "PUB_APPENG_";
     public static final String SEG_ID_PREFIX = "SEG_ID"+ ConfigStore.getTestAffix();
     public static final String PUB_ENG_PREFIX = "PUB_ENG_";
 
     public static final String ENGINE_ALIVE_PATH = "/alive";
 
-    public static final JsonObject successResponse = new JsonObject().put("code", 0).put("message", "received!");
+    public static final JsonObject successResponse = new JsonObject().put("code", 0).put("message", " Http adapter has received!");
 
     /**
      * 默认的静音检测阈值
@@ -61,9 +65,9 @@ public class Constants {
      */
     public static final String DEFAULT_KEY_EXPIRE_SEC = "300";
     /**
-     * app的license过期时间 默认30秒
+     * app的license过期时间 默认180秒
      */
-    public static final long APP_LICENSE_EXPIRED_TIME = 33000;
+    public static final long APP_LICENSE_EXPIRED_TIME = 180000;
     /**
      * 引擎license过期时间 默认20秒
      */
