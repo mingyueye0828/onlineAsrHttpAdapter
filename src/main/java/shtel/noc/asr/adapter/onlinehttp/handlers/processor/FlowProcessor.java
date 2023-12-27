@@ -1,14 +1,18 @@
 package shtel.noc.asr.adapter.onlinehttp.handlers.processor;
 
+import io.vertx.core.Context;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
+import io.vertx.ext.web.RoutingContext;
 import io.vertx.redis.client.RedisAPI;
 import lombok.extern.slf4j.Slf4j;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.ConfigStore;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.RedisHandler;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.entity.CallStatus;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.entity.VoiceSeg;
+import shtel.noc.asr.adapter.onlinehttp.handlers.service.QueryASROnlineHttpInterfaceHandler;
+import shtel.noc.asr.adapter.onlinehttp.utils.CodeMappingEnum;
 import shtel.noc.asr.adapter.onlinehttp.utils.Constants;
 import shtel.noc.asr.adapter.onlinehttp.utils.RedisUtils;
 
@@ -35,7 +39,7 @@ public class FlowProcessor {
      * 需要检查是否有并发的余量,若有则检查并初始化通话状态，并且选择发送的引擎，并将相关的状态送入redis中
      * @param voiceSeg 传入的第一个包
      */
-    public void initNewSeg(VoiceSeg voiceSeg) {
+    public void initNewSeg(VoiceSeg voiceSeg, RoutingContext context) {
         try {
             String uid = voiceSeg.getUid();
             String appId = voiceSeg.getAppId();
@@ -51,8 +55,17 @@ public class FlowProcessor {
                             }))
                     // 在这里将相关信息放入redis
                     .compose(callStatus -> sendTheSeg(callStatus, voiceSeg))
-                    .onSuccess(rrs -> log.info("INIT-NEW-VOICE-FLOW-DONE! uid {}", uid))
-                    .onFailure(rf -> log.warn("INIT-NEW-VOICE-FLOW-FAILED! uid {}, msg {},{}", uid, rf.getCause(),rf.getStackTrace()));
+                    .onSuccess(rrs -> {
+                        log.info("INIT-NEW-VOICE-FLOW-DONE! uid {}", uid);
+                        QueryASROnlineHttpInterfaceHandler.processReceivedResult(uid, "1", vertx).onSuccess(result -> {
+                            log.debug("1111111111111111");
+                            context.response().end(result.encode());
+                        });
+                    })
+                    .onFailure(rf -> {
+                        log.warn("INIT-NEW-VOICE-FLOW-FAILED! uid {}, msg {},{}", uid, rf.getCause(),rf.getStackTrace());
+                        context.response().end(CodeMappingEnum.ENGINE_CONCURRENCY_FULL.toJson().encode());
+                    });
 
         } catch (Exception e) {
             log.error("INIT-NEW-VOICE-FLOW-FAILED! UNCAUGHT ERROR, ", e);
@@ -65,7 +78,7 @@ public class FlowProcessor {
      * 获取锁，从callStatus中读取engineId，之后在释放锁
      * @param voiceSeg 传入的非首尾1s
      */
-    public void middleSeg(VoiceSeg voiceSeg) {
+    public void middleSeg(VoiceSeg voiceSeg, RoutingContext context) {
         String appId = voiceSeg.getAppId();
         String uid = voiceSeg.getUid();
         String enginePostFix = ConfigStore.getAppEngineMap().get(appId);
@@ -74,13 +87,25 @@ public class FlowProcessor {
         // 从redis中获取相关的callStatus，获取engineUrl
         RedisHandler.getCallStatus(uid)
                 .onSuccess(callStatus -> {
-                        voiceSeg.setAuf(callStatus.getAuf());
+                    voiceSeg.setAuf(callStatus.getAuf());
                     sendTheSeg(callStatus, voiceSeg)
-                                .onSuccess(rrs -> log.debug("middle seg of call has been processed! uid {}",uid))
-                                .onFailure(rrf -> log.warn("middle seg of call processed failed! uid {}, msg is {}",
-                                        uid, rrf.getMessage()));
+                                .onSuccess(rrs -> {
+                                    log.debug("middle seg of call has been processed! uid {}",uid);
+                                    QueryASROnlineHttpInterfaceHandler.processReceivedResult(uid, "2", vertx).onSuccess(result -> {
+                                        log.debug("22222222222222");
+                                        context.response().end(result.encode());
+                                    });
+                                })
+                                .onFailure(rrf -> {
+                                    log.warn("middle seg of call processed failed! uid {}, msg is {}",
+                                        uid, rrf.getMessage());
+                                    context.response().end(CodeMappingEnum.ENGINE_GENERAL_FAILURE.toJson().encode());
+                                });
+                    //若是没有初始化，在redis中找不到就报这个错误
                 }).onFailure(rf -> {
-            RedisHandler.releaseDistributionLock(Constants.ASRONLINE_CALLSTATUS_PREFIX + uid + "_LOCK", uid);
+                    log.warn("Concurrency is full");
+                    RedisHandler.releaseDistributionLock(Constants.ASRONLINE_CALLSTATUS_PREFIX + uid + "_LOCK", uid);
+                    context.response().end(CodeMappingEnum.QUERY_OUT_OF_RANGE.toJson().encode());
         });
     }
 
@@ -90,7 +115,7 @@ public class FlowProcessor {
      * 需要减去应用的并发, NOTE 目前暂不考虑仍在缓存内的情况而直接删去app并发，后期若有需要可修改
      * @param voiceSeg 传入的最后1s
      */
-    public void finalSeg(VoiceSeg voiceSeg) {
+    public void finalSeg(VoiceSeg voiceSeg,RoutingContext context) {
         String appId = voiceSeg.getAppId();
         String uid = voiceSeg.getUid();
         String appEnginePostFix = appId + "_" + ConfigStore.getAppEngineMap().get(appId);
@@ -99,18 +124,30 @@ public class FlowProcessor {
                     .onSuccess(callStatus -> {
                         voiceSeg.setAuf(callStatus.getAuf());
                         sendTheSeg(callStatus, voiceSeg)
+                                .onSuccess(rrs -> {
+                                    log.debug("last seg of call has been processed! uid {}",uid);
+                                    QueryASROnlineHttpInterfaceHandler.processReceivedResult(uid, "4", vertx).onSuccess(result -> {
+                                        log.info("4444444444444444444444444444");
+                                        context.response().end(result.encode());
+//                                        //将最后的结果获取并发送之后，在减去并发
+                                        SessionController.decrAppSession(appEnginePostFix, uid);
+                                    });
+                                })
 //                                .onComplete(rr -> {
-//
-//
 //                                    SessionController.decrAppSession(appEnginePostFix, uid);
 //                                })
-                                //.onSuccess(rrs -> log.debug("last seg of call has been processed! uid {}",uid))
-                                .onFailure(rrf -> log.warn("last seg of call processed failed! uid {}, msg is {}",
-                                        uid, rrf.getMessage()));
+                                .onFailure(rrf -> {
+                                    log.warn("last seg of call processed failed! uid {}, msg is {}",
+                                        uid, rrf.getMessage());
+                                    SessionController.decrAppSession(appEnginePostFix, uid);
+                                    context.response().end(CodeMappingEnum.ENGINE_GENERAL_FAILURE.toJson().encode());
+                                });
                     })
                     .onFailure(rf -> {
                         //该通话可能未被初始化（无callStatus）
+                        log.warn("Concurrency is full");
                         RedisHandler.releaseDistributionLock(Constants.ASRONLINE_CALLSTATUS_PREFIX + uid + "_LOCK", uid);
+                        context.response().end(CodeMappingEnum.QUERY_OUT_OF_RANGE.toJson().encode());
                     });
         });
     }

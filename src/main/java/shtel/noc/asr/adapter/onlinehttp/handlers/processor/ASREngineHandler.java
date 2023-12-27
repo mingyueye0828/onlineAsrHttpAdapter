@@ -3,6 +3,7 @@ package shtel.noc.asr.adapter.onlinehttp.handlers.processor;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.predicate.ResponsePredicate;
@@ -10,6 +11,7 @@ import io.vertx.ext.web.codec.BodyCodec;
 import lombok.extern.slf4j.Slf4j;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.ConfigStore;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.entity.CallStatus;
+import shtel.noc.asr.adapter.onlinehttp.handlers.common.entity.Params;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.entity.VoiceSeg;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.exception.EngineException;
 import shtel.noc.asr.adapter.onlinehttp.utils.Constants;
@@ -45,6 +47,7 @@ public class ASREngineHandler {
                                         CallStatus callStatus) {
         Promise<CallStatus> promise = Promise.promise();
         String audioStatus = voiceSeg.getAudioStatus();
+        log.warn("发送的状态为：！{}", audioStatus);
         URL engineUrl = callStatus.getEngineUrl();
 
         //第一次的时候，选择引擎，之后直接callStatus中拿
@@ -81,7 +84,17 @@ public class ASREngineHandler {
     public Future<JsonObject> send2EngineAUW(VoiceSeg voiceSeg, URL engineUrl) {
         Promise<JsonObject> promise = Promise.promise();
         String audioStatus = voiceSeg.getAudioStatus();
+        log.info("每次发送的状态为：{}！！！", audioStatus);
         String uid = voiceSeg.getUid();
+
+        //去除初始化的热词，不然下层会报错
+        Params params = voiceSeg.getParams();
+        JsonObject paramsJson = JsonObject.mapFrom(params);
+        if(paramsJson.getValue("hotWords").equals("")){
+            paramsJson.remove("hotWords");
+            paramsJson.remove("hotWordScore");
+        }
+
         //将音频发送给引擎
         JsonObject reqBody = new JsonObject()
                 .put("uid", voiceSeg.getUid())
@@ -91,12 +104,13 @@ public class ASREngineHandler {
                 .put("appId", voiceSeg.getAppId())
                 .put("modelId", voiceSeg.getModelId())
                 .put("callInfo", voiceSeg.getCallInfo())
-                .put("params", voiceSeg.getParams())
+                .put("params", paramsJson)
                 ;
-        log.debug("返回地址为：{}", voiceSeg.getParams());
+        log.debug("Params参数：{}", voiceSeg.getParams());
         if (voiceSeg.getAudioData().length() == 0 && !"4".equals(audioStatus)) {
             log.warn("Audio data is zero length! uid {}", uid);
         }
+        log.debug("reqBody iS {}", reqBody.toString());
         log.debug("Engine module url is {}", engineUrl);
 
         //向引擎发送
@@ -117,8 +131,9 @@ public class ASREngineHandler {
                     }
                 })
                 .onFailure(rf -> {
+                    log.warn("返回错误信息：{}", rf.getMessage());
                             log.warn("metricsLog requestWarn {}", new JsonObject()
-                                    .put("uid", voiceSeg.getUid()).put("type", "auw" + audioStatus));
+                                    .put("uid", voiceSeg.getUid()).put("type", "auw: " + audioStatus));
                             promise.fail(new EngineException("uid is " + voiceSeg.getUid() + ", " + rf.getMessage()));
                         }
                 );

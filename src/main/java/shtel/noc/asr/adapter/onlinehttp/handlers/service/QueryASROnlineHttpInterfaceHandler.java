@@ -22,8 +22,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static shtel.noc.asr.adapter.onlinehttp.utils.Constants.MAX_ATTEMPTS;
 import static shtel.noc.asr.adapter.onlinehttp.utils.Constants.successResponse;
 
 
@@ -59,37 +61,39 @@ public class QueryASROnlineHttpInterfaceHandler implements Handler<RoutingContex
         log.debug("返回地址为：{}",voiceSeg.getParams().getResultPipeUrl());
         //音频状态 1 2 4，1为起始，2为中间，4为结束
         String audioStatus = voiceSeg.getAudioStatus();
+        log.info("audioStatus 状态为：{}", audioStatus);
+
         String uid = voiceSeg.getUid();
         log.info("========packet received! uid {}", voiceSeg.getUid());
         //这里根据相应的状态码进行响应；
         switch (audioStatus) {
             case ("1"):
                 //初始化 需要建立音频的状态信息，将相关的信息以及送入的引擎记录下来，还要记录下返回地址
-                flowProcessor.initNewSeg(voiceSeg);
-                processReceivedResult(uid, "1", vertx).onSuccess(result -> {
-                    log.debug("1111111111111111");
-                    context.response().end(result.encode());
-                });
+                flowProcessor.initNewSeg(voiceSeg,context);
+//                processReceivedResult(uid, "1", vertx).onSuccess(result -> {
+//                    log.debug("1111111111111111");
+//                    context.response().end(result.encode());
+//                });
                 break;
             case ("2"):
                 //发送语音流中间的包
-                flowProcessor.middleSeg(voiceSeg);
-                processReceivedResult(uid, "2", vertx).onSuccess(result -> {
-                    log.debug("22222222222222");
-                    context.response().end(result.encode());
-                });
+                flowProcessor.middleSeg(voiceSeg,context);
+//                processReceivedResult(uid, "2", vertx).onSuccess(result -> {
+//                    log.debug("22222222222222");
+//                    context.response().end(result.encode());
+//                });
                 break;
             case ("4"):
                 //同上，另外需要删去app并发
-                flowProcessor.finalSeg(voiceSeg);
-                processReceivedResult(uid, "4", vertx).onSuccess(result -> {
-                    log.info("4444444444444444444444444444");
-                    context.response().end(result.encode());
-                    //将最后的结果获取并发送之后，在减去并发
-                    String appId = voiceSeg.getAppId();
-                    String appEnginePostFix = appId + "_" + ConfigStore.getAppEngineMap().get(appId);
-                    SessionController.decrAppSession(appEnginePostFix, uid);
-                });
+                flowProcessor.finalSeg(voiceSeg,context);
+//                processReceivedResult(uid, "4", vertx).onSuccess(result -> {
+//                    log.info("4444444444444444444444444444");
+//                    context.response().end(result.encode());
+//                    //将最后的结果获取并发送之后，在减去并发
+//                    String appId = voiceSeg.getAppId();
+//                    String appEnginePostFix = appId + "_" + ConfigStore.getAppEngineMap().get(appId);
+//                    SessionController.decrAppSession(appEnginePostFix, uid);
+//                });
                 break;
             default:
                 log.error("Input audioStatus is not qualified!");
@@ -109,9 +113,11 @@ public class QueryASROnlineHttpInterfaceHandler implements Handler<RoutingContex
 
             log.debug("进来4了！！！！！！！！！！！！");
             AtomicBoolean timerCancelled = new AtomicBoolean(false);
+            AtomicInteger attempts = new AtomicInteger(0);
             vertx.setPeriodic(1000, timerHandler -> {
                 RedisHandler.getReceiverResult(uid, true)
                         .onSuccess(result -> {
+                            attempts.incrementAndGet();
                             for (String oneResult : result) {
                                 JsonObject jsonObject = new JsonObject(oneResult);
                                 log.debug("映射的json为!!!!!!!：{}", jsonObject);
@@ -129,6 +135,12 @@ public class QueryASROnlineHttpInterfaceHandler implements Handler<RoutingContex
                             if (timerCancelled.get()) {
                                 JsonObject response = buildResponse(allResults);
                                 promise.complete(response);
+                            } else if (!timerCancelled.get() && attempts.get() >= MAX_ATTEMPTS){
+                                JsonObject response = buildResponse(allResults);
+                                promise.complete(response);
+                                vertx.cancelTimer(timerHandler);
+                                log.warn("尝试获取结果超过阈值，取消计时器");
+                                promise.fail("Timeout exceeded");
                             }
                         })
                         .onFailure(error -> {// 处理异常情况
@@ -136,6 +148,8 @@ public class QueryASROnlineHttpInterfaceHandler implements Handler<RoutingContex
                                     promise.fail(error);
                                 });
             });
+
+
         } else {
             RedisHandler.getReceiverResult(uid, true)
                     .onSuccess(result -> {

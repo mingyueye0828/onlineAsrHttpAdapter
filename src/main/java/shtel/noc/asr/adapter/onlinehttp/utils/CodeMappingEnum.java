@@ -44,9 +44,9 @@ public enum CodeMappingEnum {
     REDIS_COMMUNICATION_ERROR("555", "5555", "metricsLog requestError Redis unreachable!"),
 
     //通用成功码
-    SUCCESS("0", "0", "success"),
+    SUCCESS("0", "200", "success"),
     //通用错误码
-    REQUEST_FAILED("999", "9999", "metricsLog requestError Undefined response Error!");
+    REQUEST_FAILED("999", "9999", "metricsLog request Error Undefined response Error!");
 
     /**
      * 实时转写引擎返回码

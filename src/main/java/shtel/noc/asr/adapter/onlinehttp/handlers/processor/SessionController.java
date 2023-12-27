@@ -72,7 +72,6 @@ public class SessionController {
                     log.warn("check app license failed! uid is " + uid);
                     promise.fail(new ConcurrencyException("APP add license failed! uid is " + uid));
                 });
-
         return promise.future();
     }
 

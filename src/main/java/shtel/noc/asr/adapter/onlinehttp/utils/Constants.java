@@ -82,5 +82,10 @@ public class Constants {
      */
     public static final int SAMPLING_RATE = 8000;
 
+    /**
+     * 最后一个字段从redis中拿取次数
+     */
+    public static final int MAX_ATTEMPTS = 100;
+
 
 }
