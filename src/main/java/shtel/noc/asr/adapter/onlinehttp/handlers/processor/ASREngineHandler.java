@@ -14,7 +14,9 @@ import shtel.noc.asr.adapter.onlinehttp.handlers.common.entity.CallStatus;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.entity.Params;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.entity.VoiceSeg;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.exception.EngineException;
+import shtel.noc.asr.adapter.onlinehttp.utils.CodeMappingEnum;
 import shtel.noc.asr.adapter.onlinehttp.utils.Constants;
+
 import java.net.URL;
 
 /**
@@ -47,19 +49,19 @@ public class ASREngineHandler {
                                         CallStatus callStatus) {
         Promise<CallStatus> promise = Promise.promise();
         String audioStatus = voiceSeg.getAudioStatus();
-        log.warn("发送的状态为：！{}", audioStatus);
+        log.info("Send audioStatus is {}", audioStatus);
         URL engineUrl = callStatus.getEngineUrl();
 
         //第一次的时候，选择引擎，之后直接callStatus中拿
-        if (engineUrl==null){
+        if (engineUrl == null) {
             engineUrl = ConfigStore.randomSelectEngineModule(voiceSeg.getModelId());
             callStatus.setEngineUrl(engineUrl);
             voiceSeg.setAudioStatus("1");
         }
 
         //如果还是没有，就直接返回了
-        if (engineUrl==null){
-            promise.complete(callStatus);
+        if (engineUrl == null) {
+            promise.fail(CodeMappingEnum.ENGINE_GENERAL_FAILURE.getTransCode());
             return promise.future();
         }
         URL finalEngineUrl = engineUrl;
@@ -69,32 +71,40 @@ public class ASREngineHandler {
                     log.warn("send Audio failed! auw4 send seg failed! sentenceId {}, msg {}", sentenceId, rf.getMessage());
                     callStatus.setEngineUrl(null);
                     // 根据alive判断这个引擎是否存活
-                    setDownAndCheckEngineStatus(voiceSeg.getModelId(),finalEngineUrl);
+                    setDownAndCheckEngineStatus(voiceSeg.getModelId(), finalEngineUrl);
+                    promise.fail(CodeMappingEnum.ENGINE_GENERAL_FAILURE.getTransCode());
                 })
-                .onComplete(rc->{
+                .onSuccess(rc -> {
                     promise.complete(callStatus);
                 });
+//                .onComplete(rc -> {
+//                    promise.complete(callStatus);
+//                });
         return promise.future();
     }
 
-    /**将包进行组合，发送给引擎
+    /**
+     * 将包进行组合，发送给引擎
      * todo：还需要添加热词
-     * */
+     */
 
     public Future<JsonObject> send2EngineAUW(VoiceSeg voiceSeg, URL engineUrl) {
         Promise<JsonObject> promise = Promise.promise();
         String audioStatus = voiceSeg.getAudioStatus();
-        log.info("每次发送的状态为：{}！！！", audioStatus);
+        log.info("Every send pcm audioStatus is {} ", audioStatus);
         String uid = voiceSeg.getUid();
-
-        //去除初始化的热词，不然下层会报错
+        log.info("uid 11111111111111111");
+        //去除初始化的热词，不然下层会报错（jwz）
         Params params = voiceSeg.getParams();
         JsonObject paramsJson = JsonObject.mapFrom(params);
-        if(paramsJson.getValue("hotWords").equals("")){
+        if (paramsJson.getValue("hotWords").equals("")) {
             paramsJson.remove("hotWords");
+//            paramsJson.remove("hotWordScore");
+        }
+        if(paramsJson.getValue("hotWordScore").equals("")){
             paramsJson.remove("hotWordScore");
         }
-
+        log.info("uid 222222222222222222");
         //将音频发送给引擎
         JsonObject reqBody = new JsonObject()
                 .put("uid", voiceSeg.getUid())
@@ -104,9 +114,9 @@ public class ASREngineHandler {
                 .put("appId", voiceSeg.getAppId())
                 .put("modelId", voiceSeg.getModelId())
                 .put("callInfo", voiceSeg.getCallInfo())
-                .put("params", paramsJson)
-                ;
-        log.debug("Params参数：{}", voiceSeg.getParams());
+                .put("params", paramsJson);
+        log.debug("Params is ：{}", voiceSeg.getParams());
+
         if (voiceSeg.getAudioData().length() == 0 && !"4".equals(audioStatus)) {
             log.warn("Audio data is zero length! uid {}", uid);
         }
@@ -122,53 +132,50 @@ public class ASREngineHandler {
                 .onSuccess(rs -> {
                     log.debug("PCM has send engine !!!!!!");
                     JsonObject resultJson = rs.body();
-                    if (null != resultJson) {
+                    if (null != resultJson && !resultJson.toString().equals("500")) {
                         promise.complete(resultJson);
                     } else {
-                        promise.fail(
-                                new EngineException("auw result is null, need see uid " + uid
-                                        + ", uid " + voiceSeg.getUid() + " result is " + rs.body()));
+                        //引擎内部出错
+                        log.warn("auw result is null, need see uid " + uid + ", uid " + voiceSeg.getUid() + " result is " + rs.body());
+                        promise.fail(CodeMappingEnum.ENGINE_GENERAL_FAILURE.getTransCode());
                     }
                 })
                 .onFailure(rf -> {
-                    log.warn("返回错误信息：{}", rf.getMessage());
-                            log.warn("metricsLog requestWarn {}", new JsonObject()
-                                    .put("uid", voiceSeg.getUid()).put("type", "auw: " + audioStatus));
-                            promise.fail(new EngineException("uid is " + voiceSeg.getUid() + ", " + rf.getMessage()));
-                        }
+                        log.warn("request uid fail, uid is {}, failure message is：{}",voiceSeg.getUid(), rf.getMessage());
+                        log.warn("metricsLog requestWarn {}", new JsonObject().put("uid", voiceSeg.getUid()).put("type", "auw: " + audioStatus));
+                        promise.fail(CodeMappingEnum.ENGINE_RESPONSE_FAILURE.getTransCode());
+                }
                 );
         return promise.future();
     }
-
-
 
 
     /**
      * 检查被标记为false的engineUrl的状态
      * 如果/alive接口没响应 或 返回的json中（包含引擎和当前剩余并发数）剩余并发数都小于等于0，则认为还在挂，否则认为存活，修改其为true
      */
-    private void setDownAndCheckEngineStatus(String modelId, URL engine2bChecked){
-        ConfigStore.getEngineIdUrlMap().get(modelId).put(engine2bChecked,false);
-        vertx.setPeriodic(Constants.TIME_10_SECONDS, cs->
+    private void setDownAndCheckEngineStatus(String modelId, URL engine2bChecked) {
+        ConfigStore.getEngineIdUrlMap().get(modelId).put(engine2bChecked, false);
+        vertx.setPeriodic(Constants.TIME_10_SECONDS, cs ->
                 webClient.get(engine2bChecked.getPort(), engine2bChecked.getHost(), Constants.ENGINE_ALIVE_PATH)
                         .addQueryParam("modelId", modelId)
                         .send()
                         .onSuccess(concurrency -> {
                             String result = concurrency.bodyAsString();
                             String[] list = result.split(":|}");
-                            for (int i=2;i<list.length;i=i+3){
-                                if (Integer.parseInt(list[i])>0){
+                            for (int i = 2; i < list.length; i = i + 3) {
+                                if (Integer.parseInt(list[i]) > 0) {
                                     log.info("engine {}-{} is back online! current engine concurrency is {}",
                                             modelId, engine2bChecked, result);
-                                    ConfigStore.getEngineIdUrlMap().get(modelId).put(engine2bChecked,true);
+                                    ConfigStore.getEngineIdUrlMap().get(modelId).put(engine2bChecked, true);
                                     vertx.cancelTimer(cs);
                                     break;
                                 }
                             }
-                            log.warn("test modelId {}, engine module {} has no engine available!",modelId,engine2bChecked);
+                            log.warn("test modelId {}, engine module {} has no engine available!", modelId, engine2bChecked);
                         })
-                        .onFailure(rff->{
-                            log.warn("test modelId {}, engine module {} is not good!",modelId,engine2bChecked);
+                        .onFailure(rff -> {
+                            log.warn("test modelId {}, engine module {} is not good!", modelId, engine2bChecked);
                         })
         );
     }

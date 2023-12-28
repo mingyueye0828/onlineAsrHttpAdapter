@@ -10,10 +10,7 @@ import shtel.noc.asr.adapter.onlinehttp.handlers.common.entity.CallStatus;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.entity.ResultReceived;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.entity.VoiceSeg;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.exception.RedisException;
-import shtel.noc.asr.adapter.onlinehttp.utils.Constants;
-import shtel.noc.asr.adapter.onlinehttp.utils.EventBusChannels;
-import shtel.noc.asr.adapter.onlinehttp.utils.RedisUtils;
-import shtel.noc.asr.adapter.onlinehttp.utils.TimeStamp;
+import shtel.noc.asr.adapter.onlinehttp.utils.*;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -98,7 +95,7 @@ public class RedisHandler {
                                     CallStatus initCallStatus = new CallStatus(voiceSeg);
                                     initCallStatus.setReqId(uid);
                                     initCallStatus.setAppId(appId);
-                                    // 这里设置了callStatus的信息
+                                    // 这里设置了callStatus的信息，直接覆盖掉，这里可能比较久，所以不主动释放，等待过期释放
                                     RedisHandler.setCallStatus(uid, initCallStatus, false)
                                             .onFailure(rrf -> promise.fail(new RedisException("Init callStatus failed, uid " + uid)))
                                             .onSuccess(rrs -> promise.complete(initCallStatus));
@@ -117,7 +114,7 @@ public class RedisHandler {
      * 将callStatus写入Redis
      *
      * @param callStatus      call信息
-     * @param needReleaseLock 是否需要解callStatus锁？目前仅当初始化callStatus时不需要解锁
+     * @param needReleaseLock 是否需要解callStatus锁？目前仅当初始化callStatus时不需要解锁 300s时间
      * @return 返回 已完成
      */
     public static Future<Void> setCallStatus(String uid, CallStatus callStatus, boolean needReleaseLock) {
@@ -161,7 +158,8 @@ public class RedisHandler {
                                     promise.fail("parse call status failed! the result is |||" + rr.result());
                                 }
                             } else {
-                                promise.fail(new RedisException("Get call status Failed!", rr.cause()));
+                                log.warn("Get call status Failed!");
+                                promise.fail(CodeMappingEnum.REDIS_GET_CALL_RECORDE_FAILURE.toJson().toString());
                             }
                         })
                 )
@@ -194,10 +192,10 @@ public class RedisHandler {
                                 TimeStamp.currentTimeStamp()
                         )).onSuccess(
                                 rr -> {
-                                    log.debug("插入redis成功！！！！");
+                                    log.debug("Insert Redis success");
                                     if (needReleaseLock) {
                                         RedisHandler.releaseDistributionLock(Constants.ASRONLINE_RECEIVERRESULT_PREFIX + uid + "_LOCK", uid);
-                                        log.debug("已经释放锁了");
+                                        log.debug("Get result from redis has release lock");
                                     }
                                 })
                         .onFailure(rf ->{
@@ -234,12 +232,11 @@ public class RedisHandler {
                                     int resultLen = result.toString().length();
                                     // 进行判断是否有返回
                                     if (resultLen < 3) {
-                                        log.debug("返回的是0！！！！！！！！！！！");
+                                        log.debug("Redis get 0！！！！！！！！！！！");
                                         promise.complete(new String[0]);
                                         // 若有返回，去掉首位，并将其分隔成String[]
                                     } else {
                                         String[] resultList = result.toString().substring(1, resultLen - 1).split(", ");
-                                        log.debug("返回的长度是：{}", resultList.length);
                                         log.info("app session {}, results {} has been get", uid, resultList);
                                         promise.complete(resultList);
                                     }

@@ -9,6 +9,8 @@ import io.vertx.json.schema.SchemaParser;
 import io.vertx.json.schema.SchemaRouter;
 import io.vertx.json.schema.SchemaRouterOptions;
 import lombok.extern.slf4j.Slf4j;
+import shtel.noc.asr.adapter.onlinehttp.handlers.common.ConfigStore;
+import shtel.noc.asr.adapter.onlinehttp.utils.CodeMappingEnum;
 
 import static io.vertx.json.schema.common.dsl.Schemas.objectSchema;
 import static io.vertx.json.schema.common.dsl.Schemas.stringSchema;
@@ -32,6 +34,7 @@ public class InputValidation implements Handler<RoutingContext> {
                 .requiredProperty("audioStatus", stringSchema())
                 .requiredProperty("audioData", stringSchema())
                 .requiredProperty("modelId", stringSchema())
+                .requiredProperty("appId", stringSchema())
                 .build(schemaParser);
     }
 
@@ -40,7 +43,16 @@ public class InputValidation implements Handler<RoutingContext> {
         schema.validateAsync(context.getBodyAsJson())
                 //// NOTE: 2021/7/21 .onFailure(routingContext::fail) 这儿直接就返回400了，不进FailureHandler处理
                 //这里可以自动返回缺少那些参数，或者信息
-                .onFailure(rf -> context.response().setStatusCode(400).end(rf.getMessage()))
-                .onSuccess(res -> context.next());
+                .onFailure(rf -> context.response().end(CodeMappingEnum.PARAMETER_ERROR.toJson()+" Details: {"+rf.getMessage()+"}"))
+                .onSuccess(res -> {
+                    String modelId = context.getBodyAsJson().getString("modelId");
+                    String appId = context.getBodyAsJson().getString("appId");
+                    log.info("appId-modleId{}",appId+"_"+modelId);
+                    if(ConfigStore.getAppLimitMap().get(appId+"_"+modelId)==null){
+                        context.response().end(CodeMappingEnum.PARAMETER_ERROR.toJson().encode());
+                    }else{
+                    context.next();
+                    }
+                });
     }
 }

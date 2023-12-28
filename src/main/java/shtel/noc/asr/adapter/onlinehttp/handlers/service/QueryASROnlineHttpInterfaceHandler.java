@@ -58,10 +58,10 @@ public class QueryASROnlineHttpInterfaceHandler implements Handler<RoutingContex
         JsonObject requestBody = context.getBody().toJsonObject();
         //这里加上返回地址
         VoiceSeg voiceSeg = requestBody.mapTo(VoiceSeg.class);
-        log.debug("返回地址为：{}",voiceSeg.getParams().getResultPipeUrl());
+        log.debug("Adapter return url is ：{}",voiceSeg.getParams().getResultPipeUrl());
         //音频状态 1 2 4，1为起始，2为中间，4为结束
         String audioStatus = voiceSeg.getAudioStatus();
-        log.info("audioStatus 状态为：{}", audioStatus);
+        log.info("Audio status is：{}", audioStatus);
 
         String uid = voiceSeg.getUid();
         log.info("========packet received! uid {}", voiceSeg.getUid());
@@ -110,8 +110,7 @@ public class QueryASROnlineHttpInterfaceHandler implements Handler<RoutingContex
 
         //如果status是4
         if ("4".equals(status)) {
-
-            log.debug("进来4了！！！！！！！！！！！！");
+            log.debug("The last package is coming");
             AtomicBoolean timerCancelled = new AtomicBoolean(false);
             AtomicInteger attempts = new AtomicInteger(0);
             vertx.setPeriodic(1000, timerHandler -> {
@@ -120,7 +119,7 @@ public class QueryASROnlineHttpInterfaceHandler implements Handler<RoutingContex
                             attempts.incrementAndGet();
                             for (String oneResult : result) {
                                 JsonObject jsonObject = new JsonObject(oneResult);
-                                log.debug("映射的json为!!!!!!!：{}", jsonObject);
+                                log.debug("The every json is：{}", jsonObject);
                                 ResultReceived resultReceived = jsonObject.mapTo(ResultReceived.class);
                                 int resultStatus = resultReceived.getStatus();
                                 if (resultStatus == 4) {
@@ -139,55 +138,50 @@ public class QueryASROnlineHttpInterfaceHandler implements Handler<RoutingContex
                                 JsonObject response = buildResponse(allResults);
                                 promise.complete(response);
                                 vertx.cancelTimer(timerHandler);
-                                log.warn("尝试获取结果超过阈值，取消计时器");
-                                promise.fail("Timeout exceeded");
+                                log.warn("Get the last result timeout !!!");
+                                promise.fail(CodeMappingEnum.ENGINE_GET_RESULT_FAILURE.toJson().toString());
                             }
                         })
                         .onFailure(error -> {// 处理异常情况
                                     vertx.cancelTimer(timerHandler);
-                                    promise.fail(error);
+                                    promise.fail(CodeMappingEnum.REDIS_COMMUNICATION_ERROR.toJson().toString());
                                 });
             });
-
-
         } else {
             RedisHandler.getReceiverResult(uid, true)
                     .onSuccess(result -> {
-                        log.debug("返回的长度是：{}", result.length);
-                        log.debug("返回的结果是：{}", (Object) result);
+                        log.debug("Engine return response：{}", (Object) result);
                         JsonObject response = buildResponse(result);
-                        log.debug("这里的结果是？？？？？？？？？？？？{}", response.toString());
+                        log.debug("Return to the client response:{}", response.toString());
                         promise.complete(response);
                     })
                     .onFailure(error ->{
-                        log.error("返回String[]失败!!!!!!!136");
-                        promise.fail(error);}
-                            );
+                        log.error("Redis can not reply, message is {}",error.getMessage());
+                        promise.fail(CodeMappingEnum.REDIS_COMMUNICATION_ERROR.toJson().toString());}
+                    );
         }
         return promise.future();
     }
 
     public static JsonObject buildResponse(String[] result) {
         JsonObject response = CodeMappingEnum.SUCCESS.toJson().copy();
+        log.debug("redis get result is String[] {}", result);
         if (result.length != 0) {
-            log.debug("String[]这里进来了！！！！");
-//            response.put("results", new JsonArray(Arrays.asList(result)));
             JsonArray resultArray = new JsonArray();
+
             for (String item : result) {
                 JsonObject jsonItem = new JsonObject(item);
                 resultArray.add(jsonItem);
             }
             response.put("results", resultArray);
-            log.debug("接收到string[]!!!!!!!!!");
+            log.debug("String[] response is {}",response);
             return response;
         }
-        log.debug("没有接收到string[]!!!!!!!!!");
-        log.debug("返回的response为：{}", CodeMappingEnum.SUCCESS.toJson());
         return CodeMappingEnum.SUCCESS.toJson();
     }
 
     private static JsonObject buildResponse(List<String[]> results) {
-        log.debug("List<String[]>这里进来了！！！！");
+        log.debug("redis get result is List<String[]> {}", results.toString());
         JsonObject response = CodeMappingEnum.SUCCESS.toJson().copy();
         if (!results.isEmpty()) {
             JsonArray resultArray = new JsonArray();
@@ -198,11 +192,9 @@ public class QueryASROnlineHttpInterfaceHandler implements Handler<RoutingContex
                 }
             }
             response.put("results", resultArray);
+            log.debug("List<String[]> response is {}",response);
             return response;
         }
         return CodeMappingEnum.SUCCESS.toJson();
     }
-
-
-
 }

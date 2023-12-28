@@ -27,31 +27,33 @@ public enum CodeMappingEnum {
 
     // 定义实时转写返回码
     // APP侧会获得到的错误码
-    PARAMETER_ERROR("122", "3201", "Parameters Error!"),
-    ADAPTER_CONFIG_ERROR("130", "3204", "Adapter config Error!"),
-    QUERY_OUT_OF_RANGE("123", "3202", "Required audio info not in the list!"),
-    AL_INTERNAL_ERROR("101", "3203", "Adapter processing Error!"),
-    DATA_SYNC_FAILURE("119", "3205", "metricsLog requestError Data sync Failed!"),
-    ENGINE_GENERAL_FAILURE("110", "3299", "ASR Engine - General Failure!"),
-    ENGINE_CONCURRENCY_FULL("111", "3211", "ASR Engine is full, request Rejected!"),
-    ALREADY_IN_ASR("112", "3212", "This record is already in the process of ASR, please be patient!"),
+    PARAMETER_ERROR("3201", "Request parameters Error!"),
+    ENGINE_CONCURRENCY_FULL( "3202", "ASR Engine is full, request Rejected!"),
+    QUERY_OUT_OF_RANGE( "3203", "Required audio info not in the list!"),
+    ENGINE_RESPONSE_FAILURE("3204", "ASR Engine refuse request！"),
+    ENGINE_GENERAL_FAILURE("3205", "ASR Engine - General Failure!"),
 
-    //引擎适配层会获得到的错误码
-    //其实没用 因为真出错了只能返回给引擎适配层 或log用
-    ADAPTER_RETURN_DATA_FAILURE("120", "120", "Return ASR result Failed !"),
+    ENGINE_GET_RESULT_FAILURE("3301", "ASR Engine can not return result!"),
 
     //Redis错误码
-    REDIS_COMMUNICATION_ERROR("555", "5555", "metricsLog requestError Redis unreachable!"),
+    REDIS_COMMUNICATION_ERROR("3401", "MetricsLog requestError Redis unreachable!"),
+    //没有获取响应地call记录(返回没有记录)
+    REDIS_GET_CALL_RECORDE_FAILURE("3402", "Get uid status Failed, no record of uid!"),
 
     //通用成功码
-    SUCCESS("0", "200", "success"),
+    SUCCESS("200", "Success"),
     //通用错误码
-    REQUEST_FAILED("999", "9999", "metricsLog request Error Undefined response Error!");
+    REQUEST_FAILED("9999", "metricsLog request Error Undefined response Error!"),
 
-    /**
-     * 实时转写引擎返回码
-     */
-    private final String asrOnlineCode;
+    //暂时没用到的
+    //引擎适配层会获得到的错误码
+    //其实没用 因为真出错了只能返回给引擎适配层 或log用
+    ADAPTER_RETURN_DATA_FAILURE("120", "Return ASR result Failed !"),
+    ALREADY_IN_ASR("3212", "This record is already in the process of ASR, please be patient!"),
+    AL_INTERNAL_ERROR( "3203", "Adapter processing Error!"),
+    DATA_SYNC_FAILURE( "3205", "metricsLog requestError Data sync Failed!"),
+    ADAPTER_CONFIG_ERROR("3204", "Adapter config Error!");
+
 
     /**
      * 适配层返回码
@@ -63,27 +65,13 @@ public enum CodeMappingEnum {
      */
     private final String msg;
 
-    CodeMappingEnum(String asrOnlineCode, String transCode, String msg) {
-        this.asrOnlineCode = asrOnlineCode;
+    CodeMappingEnum(String transCode, String msg) {
+
         this.transCode = transCode;
         this.msg = msg;
     }
 
-    public static Map<String, String> getByASRCode(String asrOnlineErrorCode) {
-        Map<String, String> map = new HashMap<>();
-        for (CodeMappingEnum codeMappingEnum : CodeMappingEnum.values()) {
-            if (codeMappingEnum.getAsrOnlineCode().equals(asrOnlineErrorCode)) {
-                map.put("errorCode", codeMappingEnum.getTransCode());
-                map.put("msg", codeMappingEnum.getMsg());
-                return map;
-            }
-        }
-        map.put("errorCode", "9999");
-        map.put("msg", "undefined response error!");
-        return map;
 
-
-    }
 
     public static CodeMappingEnum getByTransCode(String transErrorCode) {
         for (CodeMappingEnum codeMappingEnum : CodeMappingEnum.values()) {
@@ -107,9 +95,6 @@ public enum CodeMappingEnum {
         return transCode;
     }
 
-    public String getAsrOnlineCode() {
-        return asrOnlineCode;
-    }
 
     public String getMsg() {
         return msg;

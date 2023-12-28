@@ -6,6 +6,7 @@ import io.vertx.redis.client.RedisAPI;
 import lombok.extern.slf4j.Slf4j;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.ConfigStore;
 import shtel.noc.asr.adapter.onlinehttp.handlers.common.exception.ConcurrencyException;
+import shtel.noc.asr.adapter.onlinehttp.utils.CodeMappingEnum;
 import shtel.noc.asr.adapter.onlinehttp.utils.Constants;
 import shtel.noc.asr.adapter.onlinehttp.utils.RedisUtils;
 import shtel.noc.asr.adapter.onlinehttp.utils.TimeStamp;
@@ -27,7 +28,7 @@ public class SessionController {
     private static final String APP_DECR_SCRIPT = "if redis.call('get' , KEYS[1]) > '0' and redis.call('zscore',KEYS[2],ARGV[1]) then redis.call('zrem',KEYS[2],ARGV[1]) return redis.call('decr', KEYS[1]) else return -1 end";
 
     /**
-     * 删除超时许可的lua脚本。
+     * 删除超时许可的lua脚本，并减去相应的并发
      */
     private static final String POP_EXPIRED_SCRIPT = "local remList = redis.call('zrangebyscore', KEYS[1],0,ARGV[1]) if (next(remList)==nil) then return 0 else local remLen = tonumber(redis.call('zcount',KEYS[1],0,ARGV[1])) local realConcurrency = tonumber(redis.call('zcount',KEYS[1],0,99999999999999999)) redis.call('zremrangebyscore',KEYS[1],0,ARGV[1]) redis.call('set',KEYS[2],realConcurrency-remLen) return remList end";
 
@@ -60,7 +61,8 @@ public class SessionController {
                     log.info("uid {}, check if in the list, result is {}", uid, rs);
                     if ("-1".equals(rs.toString())) {
                         //没有加成功，已经存在这个值了
-                        promise.fail(new ConcurrencyException("APP reaches its limit! callId is " + uid));
+                        log.warn("APP reaches its limit! callId is " + uid);
+                        promise.fail(CodeMappingEnum.ENGINE_CONCURRENCY_FULL.getTransCode());
                     } else {
                         //已经存在了，
                         log.info("metricsLog asrOnlineHttpSessionCount {} appId {} incr and add to APP license done!",
@@ -69,8 +71,8 @@ public class SessionController {
                     }
                 })
                 .onFailure(rf -> {
-                    log.warn("check app license failed! uid is " + uid);
-                    promise.fail(new ConcurrencyException("APP add license failed! uid is " + uid));
+                    log.warn("check redis failed! uid is " + uid);
+                    promise.fail(CodeMappingEnum.REDIS_COMMUNICATION_ERROR.getTransCode());
                 });
         return promise.future();
     }
@@ -89,7 +91,7 @@ public class SessionController {
                 Constants.CONCURRENCY_APP_LICENSE_PREFIX + concurrencyKeyPostFix,
                 uid))
                 .onSuccess(rs -> {
-                    log.debug("正在减去并发！！！！！");
+                    log.debug("Decrease concurrency is processing");
                     if (!"-1".equals(rs.toString())) {
                         log.info("metricsLog asrOnlineHttpSessionCount {} appId {} decr and rem from APP license done!",
                                 rs, concurrencyKeyPostFix.split("_")[0]);
