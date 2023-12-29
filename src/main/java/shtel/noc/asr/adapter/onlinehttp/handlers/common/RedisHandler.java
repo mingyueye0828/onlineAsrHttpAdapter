@@ -120,6 +120,7 @@ public class RedisHandler {
     public static Future<Void> setCallStatus(String uid, CallStatus callStatus, boolean needReleaseLock) {
         Promise<Void> promise = Promise.promise();
 
+        try{
         RedisAPI.api(RedisUtils.getClient())
                 .set(Arrays.asList(Constants.ASRONLINE_CALLSTATUS_PREFIX + uid, JsonObject.mapFrom(callStatus).encodePrettily(),
                         "EX", Constants.DEFAULT_KEY_EXPIRE_SEC), rr -> {
@@ -135,6 +136,9 @@ public class RedisHandler {
                         promise.fail(new RedisException("Set call status Failed!", rr.cause()));
                     }
                 });
+        }catch (Exception e){
+            log.error("Get call Status failed! " + e.toString());
+        }
         return promise.future();
     }
 

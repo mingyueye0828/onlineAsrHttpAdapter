@@ -161,10 +161,14 @@ public class ASREngineHandler {
                         .addQueryParam("modelId", modelId)
                         .send()
                         .onSuccess(concurrency -> {
+                            // 总师 {[127.0.0.1:30000=1000, [127.0.0.1:30001=1000}
+                            // 信息园 {172.24.9.4:30001=-4078, 172.24.9.3:30000=1000}
                             String result = concurrency.bodyAsString();
+                            log.debug("ModlelId alive result is {}", result);
                             String[] list = result.split(":|}");
+                            log.debug("Alive list is {}",list);
                             for (int i = 2; i < list.length; i = i + 3) {
-                                if (Integer.parseInt(list[i]) > 0) {
+                                if (Integer.parseInt(list[i].split("=")[1]) > 0) {
                                     log.info("engine {}-{} is back online! current engine concurrency is {}",
                                             modelId, engine2bChecked, result);
                                     ConfigStore.getEngineIdUrlMap().get(modelId).put(engine2bChecked, true);

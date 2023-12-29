@@ -152,7 +152,7 @@ public class MainVerticle extends AbstractVerticle {
                 EventBusChannels.SET_REDIS_OPTIONS.name(), configuration.getJsonObject("redis"), r -> {
                 });
 
-        ConfigStore.init(config().getJsonObject("adapter"), configuration.getJsonObject("sessionController"));
+        ConfigStore.init(configuration.getJsonObject("adapter"), configuration.getJsonObject("sessionController"));
 
         vertx.setTimer(5000L,s-> ConfigStore.resetInitFlag());
     }

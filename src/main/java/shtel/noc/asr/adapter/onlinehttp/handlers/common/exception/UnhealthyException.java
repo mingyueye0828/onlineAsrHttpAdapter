@@ -7,7 +7,7 @@ package shtel.noc.asr.adapter.onlinehttp.handlers.common.exception;
  * @annotation 健康检查异常
  */
 public class UnhealthyException extends RuntimeException{
-    private static final String MSG = "ASR online adapter unhealthy!";
+    private static final String MSG = "ASR online adapter unhealthy! Redis maybe get problem!";
 
     public UnhealthyException() {
         super(MSG, new Throwable(MSG));

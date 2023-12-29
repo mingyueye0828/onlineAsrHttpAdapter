@@ -5,6 +5,8 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.json.schema.ValidationException;
 import lombok.extern.slf4j.Slf4j;
+import shtel.noc.asr.adapter.onlinehttp.handlers.common.exception.RedisException;
+import shtel.noc.asr.adapter.onlinehttp.handlers.common.exception.UnhealthyException;
 import shtel.noc.asr.adapter.onlinehttp.utils.CodeMappingEnum;
 
 /**
@@ -26,7 +28,11 @@ public class FailureHandler implements Handler<RoutingContext> {
             log.info("Request parameters validation failed,{}", thrown.getMessage());
             context.response().end(new JsonObject().put("code", CodeMappingEnum.PARAMETER_ERROR.getTransCode())
                     .put("message", CodeMappingEnum.PARAMETER_ERROR.getMsg()).encodePrettily());
-        } else {
+        } else if (thrown instanceof RedisException || thrown instanceof UnhealthyException) {
+            log.info("Redis get problems,{}", thrown.getMessage());
+            context.response().end(new JsonObject().put("code", CodeMappingEnum.REDIS_COMMUNICATION_ERROR.getTransCode())
+                    .put("message", CodeMappingEnum.REDIS_COMMUNICATION_ERROR.getMsg()).encodePrettily());
+        }else {
             log.error("Request failed,{}", thrown.getCause().getMessage(), thrown);
             context.response().end(new JsonObject().put("code", CodeMappingEnum.REQUEST_FAILED.getTransCode())
                     .put("message", CodeMappingEnum.REQUEST_FAILED.getMsg()).encodePrettily());

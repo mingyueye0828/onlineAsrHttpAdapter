@@ -35,6 +35,9 @@ public class ConfigStore {
     @Getter
     private static String testAffix;
 
+    @Getter
+    private static Level logLevel;
+
     /**
      * 实时asr接口path,asrHttpInterface对外接口，asrReceiverInterface下层HTTP接收接口
      */
@@ -93,7 +96,8 @@ public class ConfigStore {
         ConfigStore.asrAdapterPort = adapterConfig.getInteger(ConfigurationKeys.ASR_ADAPTER_PORT.name());
 
         ConfigStore.testAffix = adapterConfig.getString(ConfigurationKeys.TEST_AFFIX.name());
-        setLevel(Level.valueOf(adapterConfig.getString(ConfigurationKeys.LOG_LEVEL.name())));
+        ConfigStore.logLevel = Level.valueOf(adapterConfig.getString(ConfigurationKeys.LOG_LEVEL.name()));
+        setLevel(logLevel);
 
         //检测下层引擎配置是否有误，并初始化各个下层引擎的并发限制
         ConfigStore.sessionControllerConfig = sessionControllerConfig;
@@ -256,7 +260,7 @@ public class ConfigStore {
      */
     public static void setLevel(Level level) {
         log.info("new log level {}, old is debug enabled {}",level,log.isDebugEnabled());
-        Configurator.setAllLevels(Constants.LOG_NAME,level);
+        Configurator.setAllLevels(Constants.LOG_NAME,getLogLevel());
         log.info("now debug enabled {}",log.isDebugEnabled());
         log.debug("debug enabled！");
     }

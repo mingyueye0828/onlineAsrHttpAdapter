@@ -36,7 +36,7 @@ public enum CodeMappingEnum {
     ENGINE_GET_RESULT_FAILURE("3301", "ASR Engine can not return result!"),
 
     //Redis错误码
-    REDIS_COMMUNICATION_ERROR("3401", "MetricsLog requestError Redis unreachable!"),
+    REDIS_COMMUNICATION_ERROR("3401", "MetricsLog request Error Redis unreachable!"),
     //没有获取响应地call记录(返回没有记录)
     REDIS_GET_CALL_RECORDE_FAILURE("3402", "Get uid status Failed, no record of uid!"),
 
